@@ -10,6 +10,13 @@ on:
       - '.github/workflows/build-openwrt.yml'
   schedule:
     - cron: '0 2 * * *'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'configs/**'
+      - 'scripts/**'
+      - '.github/workflows/build-openwrt.yml'
   workflow_dispatch:
     inputs:
       target:
@@ -24,6 +31,10 @@ on:
 permissions:
   contents: write
   actions: write
+
+concurrency:
+  group: build-openwrt-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   REPO_URL: https://github.com/LiBwrt/openwrt-6.x
@@ -49,7 +60,7 @@ jobs:
           fi
 
       - name: 检出仓库
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: 生成目标矩阵
         id: set-matrix
@@ -77,14 +88,15 @@ jobs:
       actions: write
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
 
     steps:
       - name: 检出仓库
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: 释放磁盘空间
-        uses: jlumbroso/free-disk-space@main
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
         with:
           tool-cache: false
           android: true
@@ -98,6 +110,7 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
+          set -euo pipefail
           sudo -E apt-get -qq update
           sudo -E apt-get -qq full-upgrade -y
           sudo -E apt-get -qq install -y \
@@ -118,12 +131,14 @@ jobs:
       - name: 克隆源码
         working-directory: /workdir
         run: |
+          set -euo pipefail
           df -hT $PWD
           git clone --depth 1 --single-branch --branch $REPO_BRANCH $REPO_URL openwrt
           ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
       - name: 加载自定义 feeds
         run: |
+          set -euo pipefail
           if [ -f "feeds.conf.default" ]; then
             cp feeds.conf.default openwrt/feeds.conf.default
           fi
@@ -134,12 +149,14 @@ jobs:
 
       - name: 更新并安装 feeds
         run: |
+          set -euo pipefail
           cd openwrt
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
       - name: 加载配置文件
         run: |
+          set -euo pipefail
           CONFIG_FILE="configs/${{ matrix.config }}.config"
           if [ -f "$CONFIG_FILE" ]; then
             cp "$CONFIG_FILE" openwrt/.config
@@ -157,6 +174,7 @@ jobs:
         env:
           MATRIX_CONFIG: ${{ matrix.config }}
         run: |
+          set -euo pipefail
           DIY_SCRIPTS=$(ls $GITHUB_WORKSPACE/scripts/diy-*.sh 2>/dev/null | sort)
           if [ -z "$DIY_SCRIPTS" ]; then
             echo "⚠️ 未找到任何 diy-*.sh 脚本，跳过"
@@ -171,12 +189,25 @@ jobs:
 
       - name: 重新同步配置
         run: |
+          set -euo pipefail
           cd openwrt
           make defconfig
+
+      - name: 缓存 dl 和 ccache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            openwrt/dl
+            /workdir/.ccache
+          key: ${{ runner.os }}-openwrt-${{ matrix.config }}-${{ hashFiles('configs/*.config', 'scripts/**/*.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-openwrt-${{ matrix.config }}-
+            ${{ runner.os }}-openwrt-
 
       - name: 下载编译依赖
         id: download
         run: |
+          set -euo pipefail
           cd openwrt
           make download -j$(nproc)
           find dl -size -1024c -exec ls -l {} \;
@@ -185,9 +216,15 @@ jobs:
       - name: 开始编译固件
         id: compile
         run: |
+          set -euo pipefail
           cd openwrt
+          export CCACHE_DIR=/workdir/.ccache
+          export CCACHE_COMPRESS=1
+          ccache -M 2G || true
+          ccache -s || true
           echo -e "$(nproc) 线程编译中..."
           make -j$(nproc) || make -j1 || make -j1 V=s
+          ccache -s || true
           echo "status=success" >> $GITHUB_OUTPUT
 
           grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' | grep -v '^ROOTFS$' > DEVICES
@@ -209,6 +246,7 @@ jobs:
         id: organize
         if: steps.compile.outputs.status == 'success'
         run: |
+          set -euo pipefail
           cd openwrt/bin/targets/*/*
           KERNEL_VER=$(find -type f -name "*.manifest" -exec grep -oP '^kernel - \K.*?(?=~|-\d+-)' {} \; | head -1)
           [ -n "$KERNEL_VER" ] && echo "KERNEL_VER=$KERNEL_VER" >> $GITHUB_ENV
@@ -217,7 +255,7 @@ jobs:
           echo "status=success" >> $GITHUB_OUTPUT
 
       - name: 上传固件到 Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: steps.organize.outputs.status == 'success'
         with:
           name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
@@ -298,6 +336,7 @@ jobs:
         id: tag
         if: steps.compile.outputs.status == 'success'
         run: |
+          set -euo pipefail
           SAFE_TAG="${{ matrix.config }}-$(TZ=Asia/Shanghai date +"%Y.%m.%d-%H-%M")"
           echo "release_tag=$SAFE_TAG" >> $GITHUB_OUTPUT
 
@@ -378,7 +417,7 @@ jobs:
           echo "status=success" >> $GITHUB_OUTPUT
 
       - name: 发布到 Release
-        uses: softprops/action-gh-release@v2.4.2
+        uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe
         if: steps.tag.outputs.status == 'success'
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -388,8 +427,9 @@ jobs:
           files: ${{ env.PRETTY_DIR }}/*
 
       - name: 删除旧的 Releases
-        uses: dev-drprasad/delete-older-releases@v0.3.4
+        uses: dev-drprasad/delete-older-releases@dfbe6be2a006e9475dfcbe5b8d201f1824c2a9fe
         if: steps.compile.outputs.status == 'success'
+        continue-on-error: true
         with:
           keep_latest: 5
           delete_tags: true
@@ -397,8 +437,26 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 删除旧的 Workflow 运行记录
-        uses: Mattraks/delete-workflow-runs@v2
+        uses: Mattraks/delete-workflow-runs@bd2822c9d98065c9766fb1f4bbc32325c47de4fb
         if: steps.compile.outputs.status == 'success'
+        continue-on-error: true
         with:
           retain_days: 1
           keep_minimum_runs: 3
+      - name: 收集失败日志
+        if: failure()
+        run: |
+          set -euo pipefail
+          mkdir -p failure-logs
+          [ -d openwrt/logs ] && cp -r openwrt/logs failure-logs/ || true
+          [ -f openwrt/.config ] && cp openwrt/.config failure-logs/ || true
+          [ -f openwrt/.config.old ] && cp openwrt/.config.old failure-logs/ || true
+          [ -f openwrt/build.log ] && cp openwrt/build.log failure-logs/ || true
+
+      - name: 上传失败日志
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: OpenWrt_fail_logs_${{ matrix.config }}_${{ github.run_id }}
+          path: failure-logs
+          retention-days: 7

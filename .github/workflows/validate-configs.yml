@@ -1,0 +1,67 @@
+name: Validate Configs & Scripts
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'configs/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Validate config files
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(configs/*.config)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "❌ 未找到 configs/*.config"
+            exit 1
+          fi
+          for f in "${files[@]}"; do
+            grep -q '^CONFIG_TARGET_' "$f" || {
+              echo "❌ $f 缺少 CONFIG_TARGET_ 前缀配置"
+              exit 1
+            }
+          done
+          echo "✅ config 文件基础检查通过"
+
+      - name: Validate script naming
+        run: |
+          set -euo pipefail
+          if [ -f scripts/customize.sh ]; then
+            echo "✅ customize.sh 存在"
+          fi
+          shopt -s nullglob
+          for f in scripts/diy-*.sh; do
+            base=$(basename "$f")
+            if [[ ! "$base" =~ ^diy-[0-9]+-[a-zA-Z0-9._-]+\.sh$ ]]; then
+              echo "❌ 脚本命名不规范: $base"
+              exit 1
+            fi
+          done
+          echo "✅ diy 脚本命名检查通过"
+
+      - name: Shell syntax check
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for f in scripts/*.sh; do
+            bash -n "$f"
+          done
+          echo "✅ shell 语法检查通过"

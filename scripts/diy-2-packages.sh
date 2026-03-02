@@ -4,6 +4,8 @@
 # 使用稀疏克隆将第三方插件加入 package/ 目录
 # ================================================
 
+set -euo pipefail
+
 # ---- Git 稀疏克隆函数（只克隆指定子目录到 package/） ----
 function git_sparse_clone() {
   branch="$1" repourl="$2" && shift 2

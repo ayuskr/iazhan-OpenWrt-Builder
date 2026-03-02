@@ -4,6 +4,8 @@
 # 修改路由器的默认参数：IP、主机名、时区、主题等
 # ================================================
 
+set -euo pipefail
+
 # ---- 读取 cfg 配置：优先读取与 config 同名的 .cfg，没有则读取 default.cfg ----
 CFG_FILE="$GITHUB_WORKSPACE/configs/${MATRIX_CONFIG}.cfg"
 [ -f "$CFG_FILE" ] || CFG_FILE="$GITHUB_WORKSPACE/configs/default.cfg"
