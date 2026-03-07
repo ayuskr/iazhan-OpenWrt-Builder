@@ -48,7 +48,19 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - name: 检出仓库
+
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+
+
+      - name: 安装 jq
+
+        run: |
+
+          sudo apt-get update -y
+
+          sudo apt-get install -y jq
+
 
       - name: 生成目标矩阵
         id: set-matrix
@@ -211,7 +223,7 @@ jobs:
           ccache -M 2G || true
           ccache -s || true
           echo -e "$(nproc) 线程编译中..."
-          make -j$(nproc) || make -j1 || make -j1 V=s
+          make -j$(nproc) |& tee build.log || make -j1 |& tee -a build.log || make -j1 V=s |& tee -a build.log
           ccache -s || true
           echo "status=success" >> $GITHUB_OUTPUT
 
