@@ -50,7 +50,6 @@ jobs:
         run: |
           set -euo pipefail
           sudo -E apt-get -qq update
-          sudo -E apt-get -qq full-upgrade -y
           sudo -E apt-get -qq install -y \
             ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
             bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext \
