@@ -6,50 +6,33 @@
 
 set -euo pipefail
 
-# ---- 读取 cfg 配置：优先读取与 config 同名的 .cfg，没有则读取 default.cfg ----
-CFG_FILE="$GITHUB_WORKSPACE/configs/${MATRIX_CONFIG}.cfg"
-[ -f "$CFG_FILE" ] || CFG_FILE="$GITHUB_WORKSPACE/configs/default.cfg"
+source "$GITHUB_WORKSPACE/scripts/lib-builder-config.sh"
 
-DEFAULT_IP="192.168.100.1"
-DEFAULT_THEME="luci-theme-argon"
-DEFAULT_HOSTNAME="OpenWrt"
-BUILDER_NAME="OpenWrt Builder"
-RELEASES_URL=""
-WIFI_SSID=""
-WIFI_PASSWORD=""
-NOWIFI=""
-if [ -f "$CFG_FILE" ]; then
-  _ip=$(grep -m1 '^DEFAULT_IP=' "$CFG_FILE" | cut -d= -f2 | tr -d ' ')
-  _theme=$(grep -m1 '^DEFAULT_THEME=' "$CFG_FILE" | cut -d= -f2 | tr -d ' ')
-  _hostname=$(grep -m1 '^DEFAULT_HOSTNAME=' "$CFG_FILE" | cut -d= -f2 | tr -d ' ')
-  _builder=$(grep -m1 '^BUILDER_NAME=' "$CFG_FILE" | cut -d= -f2-)
-  _url=$(grep -m1 '^RELEASES_URL=' "$CFG_FILE" | cut -d= -f2 | tr -d ' ')
-  _ssid=$(grep -m1 '^WIFI_SSID=' "$CFG_FILE" | cut -d= -f2-)
-  _password=$(grep -m1 '^WIFI_PASSWORD=' "$CFG_FILE" | cut -d= -f2-)
-  _nowifi=$(grep -m1 '^NOWIFI=' "$CFG_FILE" | cut -d= -f2 | tr -d ' ')
-  [ -n "$_ip" ]       && DEFAULT_IP="$_ip"
-  [ -n "$_theme" ]    && DEFAULT_THEME="$_theme"
-  [ -n "$_hostname" ] && DEFAULT_HOSTNAME="$_hostname"
-  [ -n "$_builder" ]  && BUILDER_NAME="$_builder"
-  [ -n "$_url" ]      && RELEASES_URL="$_url"
-  [ -n "$_ssid" ]     && WIFI_SSID="$_ssid"
-  [ -n "$_password" ] && WIFI_PASSWORD="$_password"
-  [ -n "$_nowifi" ]   && NOWIFI="$_nowifi"
-fi
+# ---- 读取 cfg 配置：优先读取与 config 同名的 .cfg，没有则读取 default.cfg ----
+CFG_FILE="$(builder_cfg_path "${MATRIX_CONFIG}")"
+load_builder_cfg "$CFG_FILE"
+
+DEFAULT_IP_ESCAPED="$(escape_sed_replacement "$DEFAULT_IP")"
+DEFAULT_THEME_ESCAPED="$(escape_sed_replacement "$DEFAULT_THEME")"
+DEFAULT_HOSTNAME_ESCAPED="$(escape_sed_replacement "$DEFAULT_HOSTNAME")"
+RELEASES_URL_ESCAPED="$(escape_sed_replacement "$RELEASES_URL")"
+BUILDER_NAME_ESCAPED="$(escape_sed_replacement "$BUILDER_NAME")"
+WIFI_SSID_ESCAPED="$(escape_sed_replacement "$WIFI_SSID")"
+WIFI_PASSWORD_ESCAPED="$(escape_sed_replacement "$WIFI_PASSWORD")"
 
 # ---- 移除 luci-app-attendedsysupgrade ----
 sed -i "/attendedsysupgrade/d" $(find ./feeds/luci/collections/ -type f -name "Makefile")
 
 # ---- 修改默认 IP ----
-sed -i "s/192\.168\.[0-9]*\.[0-9]*/${DEFAULT_IP}/g" package/base-files/files/bin/config_generate
+sed -i "s/192\.168\.[0-9]*\.[0-9]*/${DEFAULT_IP_ESCAPED}/g" package/base-files/files/bin/config_generate
 # LuCI 网络配置页面中的 IP 引用
-sed -i "s/192\.168\.[0-9]*\.[0-9]*/${DEFAULT_IP}/g" $(find ./feeds/luci/modules/luci-mod-system/ -type f -name "flash.js")
+sed -i "s/192\.168\.[0-9]*\.[0-9]*/${DEFAULT_IP_ESCAPED}/g" $(find ./feeds/luci/modules/luci-mod-system/ -type f -name "flash.js")
 
 # ---- 修改默认主机名 ----
-sed -i "s/hostname='.*'/hostname='${DEFAULT_HOSTNAME}'/g" package/base-files/files/bin/config_generate
+sed -i "s/hostname='.*'/hostname='${DEFAULT_HOSTNAME_ESCAPED}'/g" package/base-files/files/bin/config_generate
 
 # ---- 修改默认主题 ----
-sed -i "s/luci-theme-bootstrap/${DEFAULT_THEME}/g" $(find ./feeds/luci/collections/ -type f -name "Makefile")
+sed -i "s/luci-theme-bootstrap/${DEFAULT_THEME_ESCAPED}/g" $(find ./feeds/luci/collections/ -type f -name "Makefile")
 
 # ---- 修改默认时区为上海 ----
 # sed -i "s/'UTC'/'CST-8'\n\t\tset system.@system[-1].zonename='Asia\/Shanghai'/g" \
@@ -57,6 +40,7 @@ sed -i "s/luci-theme-bootstrap/${DEFAULT_THEME}/g" $(find ./feeds/luci/collectio
 
 # ---- LuCI 状态页固件版本署名 ----
 BUILD_TIME=$(TZ=Asia/Shanghai date "+%Y-%m-%d %H:%M:%S")
+BUILD_TIME_ESCAPED="$(escape_sed_replacement "$BUILD_TIME")"
 STATUS_JS="feeds/luci/modules/luci-mod-status/htdocs/luci-static/resources/view/status/include/10_system.js"
 if [ -f "$STATUS_JS" ]; then
   sed -i "s#_('Firmware Version'), (L\.isObject(boardinfo\.release) ? boardinfo\.release\.description + ' / ' : '') + (luciversion || ''),# \
@@ -66,10 +50,10 @@ if [ -f "$STATUS_JS" ]; then
                 ? boardinfo.release.description + ' / '\n \
                 : '') + (luciversion || '') + ' / ',\n \
             E('a', {\n \
-                href: '${RELEASES_URL}',\n \
+                href: '${RELEASES_URL_ESCAPED}',\n \
                 target: '_blank',\n \
                 rel: 'noopener noreferrer'\n \
-                }, [ 'Built by ${BUILDER_NAME} ${BUILD_TIME}' ])\n \
+                }, [ 'Built by ${BUILDER_NAME_ESCAPED} ${BUILD_TIME_ESCAPED}' ])\n \
             ]),#" "$STATUS_JS"
 fi
 
@@ -78,11 +62,11 @@ if [ "$NOWIFI" != "true" ]; then
   WIFI_SH=$(find ./target/linux/qualcommax/base-files/etc/uci-defaults/ -type f -name "*set-wireless.sh" 2>/dev/null)
   WIFI_UC="./package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc"
   if [ -f "$WIFI_SH" ]; then
-    [ -n "$WIFI_SSID" ]     && sed -i "s/BASE_SSID='.*'/BASE_SSID='${WIFI_SSID}'/g" "$WIFI_SH"
-    [ -n "$WIFI_PASSWORD" ] && sed -i "s/BASE_WORD='.*'/BASE_WORD='${WIFI_PASSWORD}'/g" "$WIFI_SH"
+    [ -n "$WIFI_SSID" ] && sed -i "s/BASE_SSID='.*'/BASE_SSID='${WIFI_SSID_ESCAPED}'/g" "$WIFI_SH"
+    [ -n "$WIFI_PASSWORD" ] && sed -i "s/BASE_WORD='.*'/BASE_WORD='${WIFI_PASSWORD_ESCAPED}'/g" "$WIFI_SH"
   elif [ -f "$WIFI_UC" ]; then
-    [ -n "$WIFI_SSID" ]     && sed -i "s/ssid='.*'/ssid='${WIFI_SSID}'/g" "$WIFI_UC"
-    [ -n "$WIFI_PASSWORD" ] && sed -i "s/key='.*'/key='${WIFI_PASSWORD}'/g" "$WIFI_UC"
+    [ -n "$WIFI_SSID" ] && sed -i "s/ssid='.*'/ssid='${WIFI_SSID_ESCAPED}'/g" "$WIFI_UC"
+    [ -n "$WIFI_PASSWORD" ] && sed -i "s/key='.*'/key='${WIFI_PASSWORD_ESCAPED}'/g" "$WIFI_UC"
     sed -i "s/country='.*'/country='CN'/g" "$WIFI_UC"
     sed -i "s/encryption='.*'/encryption='psk2+ccmp'/g" "$WIFI_UC"
   fi
@@ -93,7 +77,9 @@ fi
   echo "CONFIG_PACKAGE_luci=y"
   echo "CONFIG_LUCI_LANG_zh_Hans=y"
   echo "CONFIG_PACKAGE_${DEFAULT_THEME}=y"
-  echo "CONFIG_PACKAGE_${DEFAULT_THEME}-config=y"
+  if [ -n "$THEME_CONFIG_PACKAGE" ]; then
+    echo "CONFIG_PACKAGE_${THEME_CONFIG_PACKAGE}=y"
+  fi
 } >> .config
 
 # ---- 高通平台专属调整 ----

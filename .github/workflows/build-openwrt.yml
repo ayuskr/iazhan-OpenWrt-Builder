@@ -327,30 +327,9 @@ jobs:
           cd $GITHUB_WORKSPACE
 
           CONFIG="${{ matrix.config }}"
-          CFG_FILE="configs/${CONFIG}.cfg"
-          [ -f "$CFG_FILE" ] || CFG_FILE="configs/default.cfg"
-
-          DEFAULT_IP="192.168.100.1"
-          DEFAULT_THEME="未设置"
-          DESC="This is OpenWrt Firmware for ${CONFIG}"
-          WIFI_SSID=""
-          WIFI_PASSWORD=""
-          NOWIFI=""
-          if [ -f "$CFG_FILE" ]; then
-            _ip=$(grep -m1 '^DEFAULT_IP=' "$CFG_FILE" | cut -d= -f2 | tr -d ' ')
-            _theme=$(grep -m1 '^DEFAULT_THEME=' "$CFG_FILE" | cut -d= -f2 | tr -d ' ')
-            _desc=$(grep -m1 '^DESC=' "$CFG_FILE" | cut -d= -f2-)
-            _ssid=$(grep -m1 '^WIFI_SSID=' "$CFG_FILE" | cut -d= -f2-)
-            _password=$(grep -m1 '^WIFI_PASSWORD=' "$CFG_FILE" | cut -d= -f2-)
-            _nowifi=$(grep -m1 '^NOWIFI=' "$CFG_FILE" | cut -d= -f2 | tr -d ' ')
-            [ -n "$_ip" ]       && DEFAULT_IP="$_ip"
-            [ -n "$_theme" ]    && DEFAULT_THEME="$_theme"
-            [ -n "$_desc" ]     && DESC="$_desc"
-            [ -n "$_ssid" ]     && WIFI_SSID="$_ssid"
-            [ -n "$_password" ] && WIFI_PASSWORD="$_password"
-            [ -n "$_nowifi" ]   && NOWIFI="$_nowifi"
-          fi
-
+          source "$GITHUB_WORKSPACE/scripts/lib-builder-config.sh"
+          CFG_FILE="$(builder_cfg_path "$CONFIG")"
+          load_builder_cfg "$CFG_FILE"
           source "$GITHUB_WORKSPACE/scripts/third-party-sources.sh"
 
           {
