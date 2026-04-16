@@ -16,7 +16,7 @@ echo "==> 移除不需要或重复的包"
 
 # 重复代理 / DNS / 非必要插件
 rm -rf feeds/luci/applications/luci-app-homeproxy
-rm -rf feeds/luci/applications/luci-app-nikki
+#rm -rf feeds/luci/applications/luci-app-nikki
 rm -rf feeds/luci/applications/luci-app-smartdns
 rm -rf feeds/luci/applications/luci-app-upnp
 rm -rf feeds/luci/applications/luci-app-wol
@@ -24,13 +24,13 @@ rm -rf feeds/luci/applications/luci-app-package-manager
 
 rm -rf feeds/packages/net/smartdns
 rm -rf feeds/packages/net/chinadns-ng
-rm -rf feeds/packages/net/nikki
+#rm -rf feeds/packages/net/nikki
 rm -rf feeds/packages/net/sing-box
 rm -rf feeds/packages/lang/golang
 
 # 不需要的主题/扩展
-rm -rf feeds/luci/themes/luci-theme-aurora
-rm -rf feeds/luci/applications/luci-app-aurora-config
+#rm -rf feeds/luci/themes/luci-theme-aurora
+#rm -rf feeds/luci/applications/luci-app-aurora-config
 
 # 额外包清理
 rm -rf package/luci-app-wolplus
