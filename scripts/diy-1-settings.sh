@@ -77,6 +77,15 @@ fi
   echo "CONFIG_PACKAGE_luci=y"
   echo "CONFIG_LUCI_LANG_zh_Hans=y"
   echo "CONFIG_PACKAGE_${DEFAULT_THEME}=y"
+  echo "CONFIG_PACKAGE_dnsmasq=y"
+  echo "CONFIG_PACKAGE_firewall4=y"
+  echo "CONFIG_PACKAGE_luci-app-firewall=y"
+  echo "CONFIG_PACKAGE_ppp=y"
+  echo "CONFIG_PACKAGE_ppp-mod-pppoe=y"
+  echo "CONFIG_PACKAGE_kmod-pppoe=y"
+  echo "CONFIG_PACKAGE_kmod-pppox=y"
+  echo "CONFIG_PACKAGE_ip-full=y"
+  echo "CONFIG_PACKAGE_kmod-tun=y"
   if [ -n "$THEME_CONFIG_PACKAGE" ]; then
     echo "CONFIG_PACKAGE_${THEME_CONFIG_PACKAGE}=y"
   fi
