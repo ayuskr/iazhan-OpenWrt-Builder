@@ -5,13 +5,14 @@
 # ============================================================
 
 # ---- PassWall ----
-PASSWALL_PACKAGES_REPO="https://github.com/xiaorouji/openwrt-passwall-packages"
+PASSWALL_PACKAGES_REPO="https://github.com/xiaorouji/openwrt-passwall-packages.git"
 PASSWALL_PACKAGES_BRANCH="main"
 PASSWALL_PACKAGES_COMMIT="HEAD"
 
-PASSWALL_LUCI_REPO="https://github.com/xiaorouji/openwrt-passwall"
+PASSWALL_LUCI_REPO="https://github.com/xiaorouji/openwrt-passwall.git"
 PASSWALL_LUCI_BRANCH="main"
 PASSWALL_LUCI_COMMIT="HEAD"
+
 
 # ---- MosDNS ----
 MOSDNS_REPO="https://github.com/sbwml/luci-app-mosdns"
